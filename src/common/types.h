@@ -5,15 +5,23 @@
 #include <boost/function_equal.hpp>
 
 namespace cuspark {
- 
-  template <typename T, typename U, typename F>
-  class MapFunction{
-    public:
-      const F f;
-      __host__ __device__ MapFunction(F f) : f(f){}
-      __host__ __device__ U operator()(T arg) const { return f(arg); }
+
+  struct pair_struct{
+    int a1 = 0;
+    int a2 = 0;
   };
-  //using MapFunction = std::function<U(T)>;
+
+  template<typename T, typename U>
+  struct MapFunction{
+    int x_, y_;
+    MapFunction(int x, int y) : x_(x), y_(y){}
+    __host__ __device__ pair_struct operator()(int arg) { 
+      pair_struct t;
+      t.a1 = x_ * arg;
+      t.a2 = y_ + arg * arg;
+      return t;
+    }
+  };
 
   template <typename T>
   using ReduceFunction = boost::function<T (const T& a, const T& b)>;

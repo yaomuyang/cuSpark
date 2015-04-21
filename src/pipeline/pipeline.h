@@ -25,8 +25,8 @@ class PipeLine {
   	: size_(size){}
    
     template <typename U>
-    MappedPipeLine<U, T> Map(U(*)(T)){
-      MappedPipeLine<U, T> a(this/*, f*/);
+    MappedPipeLine<U, T> Map(MapFunction<U, T> f){
+      MappedPipeLine<U, T> a(this, f);
       return a;
     }
     
