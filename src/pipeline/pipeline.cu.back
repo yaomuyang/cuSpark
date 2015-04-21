@@ -1,0 +1,37 @@
+#include "common/types.h"
+#include "common/logging.h"
+#include "pipeline/pipeline.h"
+#include "cuda/cuda-basics.h"
+
+namespace cuspark{
+/*
+template <typename T>
+PipeLine<T>::PipeLine(T* data, uint32_t size){
+  size_ = size;
+  DLOG(INFO) << "initiating GPU memory for data with size :" << sizeof(T) << " * " << size;
+  cudaMalloc((void**)&data_, size_ * sizeof(T));
+  cudaMemcpy(data_, data, size_ * sizeof(T), cudaMemcpyHostToDevice);
+}
+*/
+template <typename T>
+void PipeLine<T>::Execute(){
+  DLOG(INFO) << "Executing PipeLine";
+}
+
+template <typename T>
+T* PipeLine<T>::GetData(){
+  DLOG(INFO) << "Getting data from address: " << data_;
+  T* data = (T*)malloc(size_ * sizeof(T));
+  cudaMemcpy(data, this->data_, size_ * sizeof(T), cudaMemcpyDeviceToHost);
+  return data;
+}
+
+template <typename T>
+T PipeLine<T>::GetElement(uint32_t index){
+  T element;
+  cudaMemcpy(&element, this->data_ + index, sizeof(T), cudaMemcpyDeviceToHost);
+  return element;
+}
+
+
+}

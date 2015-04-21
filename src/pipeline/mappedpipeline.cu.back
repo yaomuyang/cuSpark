@@ -1,0 +1,46 @@
+#include <stdio.h>
+#include "common/types.h"
+#include "common/logging.h"
+#include "common/function.h"
+#include "cuda/cuda-basics.h"
+#include "pipeline/mappedpipeline.h"
+
+#include <thrust/device_vector.h>
+#include <thrust/transform.h>
+
+namespace cuspark{
+
+template <typename T, typename U>
+__global__ void map_kernel(T* input, U* output, int size){
+  int i = blockIdx.x * blockDim.x + threadIdx.x;
+  if(i < size){
+    output[i] = map(input[i]);
+  }
+}
+
+template <typename T, typename U>
+void MappedPipeLine<T, U>::Execute(){
+  parent_ -> Execute();
+  DLOG(INFO) << "Executing MappedPipeLine";
+  cudaMalloc((void**)&(this -> data_), this->size_ * sizeof(U));
+  //thrust::device_ptr<T> parent_data(parent_ -> data_);
+  //thrust::device_ptr<U> child_data(this -> data_);
+  //thrust::transform(parent_data, parent_data + this->size_ * sizeof(T), child_data, f_);
+  DLOG(INFO) << "TEST F: 3 --> " << f_(3);
+  DLOG(INFO) << "Address: this(" << this->data_ << "), parent(" << parent_->data_ << ")";
+
+  /*
+  MapFunction<T, U, U(*)(T)>* f;
+  cudaMalloc((void**)f, sizeof(MapFunction<T, U, U(*)(T)>));
+  cudaMemcpy(&f_, f, sizeof(MapFunction<T, U, U(*)(T)>), cudaMemcpyHostToDevice);
+  DLOG(INFO) << "F copied, with size: " << sizeof(MapFunction<T, U, U(*)(T)>);
+  */
+
+  int num_blocks = (this->size_ + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+  map_kernel<<<num_blocks, THREADS_PER_BLOCK>>>(parent_ -> data_, this->data_, this->size_);
+  cudaThreadSynchronize();
+}
+
+
+
+}
