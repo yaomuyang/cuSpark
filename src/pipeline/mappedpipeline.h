@@ -2,7 +2,7 @@
 #define CUSPARK_PIPELINE_MAPPEDPIPELINE_H_
 
 #include <stdio.h>
-#include "common/types.h"
+#include "common/function.h"
 #include "common/logging.h"
 #include "cuda/cuda-basics.h"
 #include "pipeline/pipeline.h"
@@ -19,7 +19,7 @@ __global__ void map_kernel(U* input, T* output, int size, MapFunction<T, U> map)
   }
 }
 
-/**
+/*
  * Mapped from type U to type T
  */
 template <typename T, typename U>
@@ -36,12 +36,12 @@ class MappedPipeLine : public PipeLine<T> {
     void Execute(){
       parent_ -> Execute();
       DLOG(INFO) << "Executing MappedPipeLine";
-      PipeLine<T>::MallocData();
+      PipeLine<T>::MallocCudaData();
       thrust::device_ptr<U> parent_data(parent_ -> data_);
       thrust::device_ptr<T> child_data(this -> data_);
       thrust::transform(parent_data, parent_data + this->size_ * sizeof(T), child_data, f_);
-      int num_blocks = (this->size_ + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
-      map_kernel<<<num_blocks, THREADS_PER_BLOCK>>>(parent_ -> data_, this->data_, this->size_, f_);
+      //int num_blocks = (this->size_ + THREADS_PER_BLOCK - 1) / THREADS_PER_BLOCK;
+      //map_kernel<<<num_blocks, THREADS_PER_BLOCK>>>(parent_ -> data_, this->data_, this->size_, f_);
       cudaThreadSynchronize();
     }
 

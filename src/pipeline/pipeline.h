@@ -1,9 +1,11 @@
 #ifndef CUSPARK_PIPELINE_PIPELINE_H_
 #define CUSPARK_PIPELINE_PIPELINE_H_
 
-#include "common/types.h"
+#include <iostream>
+#include <fstream>
+#include <string>
+#include "common/function.h"
 #include "common/logging.h"
-#include "pipeline/pipeline.h"
 #include "cuda/cuda-basics.h"
 
 namespace cuspark {
@@ -11,14 +13,34 @@ namespace cuspark {
 template <typename T, typename U>
 class MappedPipeLine;
 
+/*
+ * Basic PipeLine class, which we generate from file or array
+ * 
+ */
 template <typename T>
 class PipeLine {
   public:
     PipeLine(T *data, uint32_t size)
 	:size_(size){
       DLOG(INFO) << "initiating GPU memory for data with size :" << sizeof(T) << " * " << size;
-      MallocData();
+      MallocCudaData();
       cudaMemcpy(data_, data, size_ * sizeof(T), cudaMemcpyHostToDevice);
+    }
+
+    PipeLine(char* fileName, uint32_t size, StringMapFunction<T> f)
+        :size_(size){
+      DLOG(INFO) << "initiating GPU memory for data with size :" << sizeof(T) << " * " << size;
+      MallocCudaData();
+      T cache[size_];
+
+      std::ifstream infile(fileName);
+      std::string line;
+      int line_number = 0;
+      while(std::getline(infile, line)){
+        cache[line_number++] = f(line);
+      }
+      DLOG(INFO) << "total line read: " << line_number;
+      cudaMemcpy(data_, cache, size_ * sizeof(T), cudaMemcpyHostToDevice);
     }
 
     PipeLine(uint32_t size)
@@ -36,7 +58,7 @@ class PipeLine {
 	return size_;
     }
     
-    void MallocData(){
+    void MallocCudaData(){
       cudaMalloc((void**)&data_, size_ * sizeof(T));
     }
  
