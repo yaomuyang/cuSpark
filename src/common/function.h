@@ -1,31 +1,26 @@
 #ifndef CUSPARK_COMMON_TYPES_H
 #define CUSPARK_COMMON_TYPES_H
 
+#include <stdio.h>
 #include <sstream>
 #include <string>
 #include <common/logging.h>
-#include <boost/function.hpp>
-#include <boost/function_equal.hpp>
 
 namespace cuspark {
-  
-  struct pair_struct{
-    int a1, a2;
-  };
-
+ 
   struct point{
-    double x1, x2, x3, x4, y;
+    float4 x;
+    double y;
   };
 
   template<typename T, typename U>
   struct MapFunction {
-    int x_, y_;
-    MapFunction(int x, int y) : x_(x), y_(y){}
-    __host__ __device__ pair_struct operator()(int arg) { 
-      pair_struct t;
-      t.a1 = x_ * arg;
-      t.a2 = y_ + arg * arg;
-      return t;
+    float4 w_;
+    MapFunction(float4 w) : w_(w) {}
+    __host__ __device__ float4 operator()(point arg) { 
+      float dotproduct = arg.x.x * w_.x + arg.x.y * w_.y + arg.x.z * w_.z + arg.x.w * w_.w;
+      dotproduct = (1/(1+exp(-arg.y * dotproduct)) - 1) * arg.y;
+      return make_float4(arg.x.x*dotproduct, arg.x.y*dotproduct, arg.x.z*dotproduct, arg.x.w*dotproduct);
     }
   };
 
@@ -34,14 +29,17 @@ namespace cuspark {
     point operator()(std::string arg) {
       std::stringstream iss(arg);
       point p;
-      iss >> p.x1  >> p.x2  >> p.x3 >> p.x4 >> p.y;
+      iss >> p.x.x  >> p.x.y  >> p.x.z >> p.x.w >> p.y;
       return p;
     }
   };
 
   template <typename T>
-  using ReduceFunction = boost::function<T (const T& a, const T& b)>;
-
+  struct ReduceFunction { 
+    __host__ __device__ float4 operator()(float4 arg1, float4 arg2){
+      return make_float4(arg1.x+arg2.x, arg1.y+arg2.y, arg1.z+arg2.z, arg1.w+arg2.w);
+    }
+  };
 
 }
 

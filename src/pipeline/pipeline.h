@@ -7,6 +7,8 @@
 #include "common/function.h"
 #include "common/logging.h"
 #include "cuda/cuda-basics.h"
+#include <thrust/device_vector.h>
+#include <thrust/transform.h>
 
 namespace cuspark {
 
@@ -20,31 +22,29 @@ class MappedPipeLine;
 template <typename T>
 class PipeLine {
   public:
-    PipeLine(T *data, uint32_t size)
-	:size_(size){
-      DLOG(INFO) << "initiating GPU memory for data with size :" << sizeof(T) << " * " << size;
+    PipeLine(T *data, uint32_t size):size_(size){
+      DLOG(INFO) << "initiating pipeline from array";
       MallocCudaData();
       cudaMemcpy(data_, data, size_ * sizeof(T), cudaMemcpyHostToDevice);
     }
 
-    PipeLine(char* fileName, uint32_t size, StringMapFunction<T> f)
-        :size_(size){
-      DLOG(INFO) << "initiating GPU memory for data with size :" << sizeof(T) << " * " << size;
+    PipeLine(std::string filename, uint32_t size, StringMapFunction<T> f):size_(size){
+      DLOG(INFO) << "initiating pipeline from file: "<<size_;
       MallocCudaData();
-      T cache[size_];
+      T* cache = new T[size_];
 
-      std::ifstream infile(fileName);
+      std::ifstream infile;
+      infile.open(filename);
       std::string line;
       int line_number = 0;
       while(std::getline(infile, line)){
         cache[line_number++] = f(line);
       }
-      DLOG(INFO) << "total line read: " << line_number;
       cudaMemcpy(data_, cache, size_ * sizeof(T), cudaMemcpyHostToDevice);
+      free(cache);
     }
 
-    PipeLine(uint32_t size)
-  	: size_(size){}
+    PipeLine(uint32_t size):size_(size){}
    
     template <typename U>
     MappedPipeLine<U, T> Map(MapFunction<U, T> f){
@@ -52,21 +52,25 @@ class PipeLine {
       return a;
     }
     
-    T Reduce(ReduceFunction<T> f);
+    T Reduce(ReduceFunction<T> f){
+      DLOG(INFO) << "Executing Reduce";
+      thrust::device_ptr<T> self_data(data_);
+      T init = GetElement_(0);
+      T result = thrust::reduce(self_data + 1, self_data + size_, init, f);
+      FreeCudaData();
+      return result;
+    }
   
     uint32_t GetDataSize(){
 	return size_;
     }
     
-    void MallocCudaData(){
-      cudaMalloc((void**)&data_, size_ * sizeof(T));
-    }
- 
-    void FreeData(){
-      cudaFree(data_);
-    }
- 
     T *GetData(){
+      Execute();
+      return GetData_();
+    }
+ 
+    T *GetData_(){
       DLOG(INFO) << "Getting data from address: " << data_;
       T* data = (T*)malloc(size_ * sizeof(T));
       cudaMemcpy(data, this->data_, size_ * sizeof(T), cudaMemcpyDeviceToHost);
@@ -74,17 +78,42 @@ class PipeLine {
     }
 
     T GetElement(uint32_t index){
+      Execute();
+      return GetElement_(index);
+    }
+
+    T GetElement_(uint32_t index){
       T element;
       cudaMemcpy(&element, this->data_ + index, sizeof(T), cudaMemcpyDeviceToHost);
       return element;
     }
 
+    void Cache(){
+      cached = true;
+    }
+
+  //protected:
+
+    T* data_; //pointer to the array
+    bool cached = false;
+    uint32_t size_; //the length of the data array
+
+    void MallocCudaData(){
+      DLOG(INFO) << "malloc GPU memory for data with size :" << sizeof(T) << " * " << size_;
+      cudaMalloc((void**)&data_, size_ * sizeof(T));
+    }
+ 
+    void FreeCudaData(){
+      if(!cached){
+        DLOG(INFO) << "freeing GPU memory for data with size :" << sizeof(T) << " * " << size_;
+	cudaFree(data_);
+        data_ = NULL;
+      }
+    }
+
     void Execute(){
       DLOG(INFO) << "Executing PipeLine";
     }
-
-    uint32_t size_; //the length of the data array
-    T* data_; //pointer to the array
 
 };
 
